@@ -1,0 +1,83 @@
+\chapter{Dia: 10/02/22}
+\label{chap:10-02-22}
+
+Nesse dia foi majoritariamente focado no do desenvolvimento da programação para o funcionamento do Dobot.
+
+A demo do DOBOT funciona utilizando Services e o \cite{Dobotand76:online} fez um tópico para poder movimentar o braço. Assim o primeiro desafio foi aprender a utilizar os Services do ROS, para isso foi utilizado a própria wiki oficial \cite{rospyOve3:online}.
+
+\begin{lstlisting}[language=Python]
+    #!/usr/bin/env python
+    import rospy
+
+    from dobot.srv import GetPose
+
+    if __name__ == '__main__':
+        print('1')
+        # rospy.wait_for_service('print_pose')
+        get_pose = rospy.ServiceProxy('DobotServer/GetPose', GetPose)
+        print('2')
+
+
+        try:
+            print('a')
+            print(get_pose())
+            print('b')
+        except rospy.ServiceException as exc:
+            print("Service did not process request: " + str(exc))
+
+        var = get_pose()
+        print(var.x)
+\end{lstlisting}
+
+Dessa forma foi desenvolvido um código para poder exibir na tela a posição atual, já que seria necessário receber a posição do braço para poder fazer os cálculos da sua movimentação. Assim após finalizado foram incrementados no código position\underline{\space}control.py para controle de posição desenvolvido esse services
+
+\begin{lstlisting}[language=Python]
+    #!/usr/bin/env python
+    from turtle import pu
+    import rospy
+    from geometry_msgs.msg import Pose
+    import time
+    from dobot.srv import GetPose
+    import math
+
+    def distancia(ini, fim):
+        return math.sqrt((fim - math.sqrt((ini)**2))**2)
+
+    def position():
+        rospy.init_node('position_control', anonymous=True)
+        publisher = rospy.Publisher('geometry_pose', Pose, queue_size=10)
+        get_pose = rospy.ServiceProxy('DobotServer/GetPose', GetPose)
+
+
+        print("Say where you want me to go")
+        x = int(input("X axis: "))
+        y = int(input("Y axis: "))
+        z = int(input("Z axis: "))
+
+        freq = rospy.Rate(0.5)
+        dist = 1
+
+        k = 10
+
+        while dist >= 0.1:
+            print('a')
+            msg = Pose()
+            pose = get_pose()
+            
+            msg.position.x = k * distancia(pose.x, x)
+            msg.position.y = k * distancia(pose.y, y)
+            msg.position.z = k * distancia(pose.z, z)
+            publisher.publish(msg)
+
+            dist = (distancia(pose.x, x) + distancia(pose.z, z) + distancia(pose.y, y)) / 3
+
+            freq.sleep()
+
+    if __name__ == "__main__":
+        try:
+            position()
+        except rospy.ROSInterruptException:
+            pass
+\end{lstlisting}
+
+Esse código foi feito baseado no código desenvolvido por \cite{Dobotand76:online}. Porém, nenhuma das suas versões conseguiram movimentar o braço robótico.
