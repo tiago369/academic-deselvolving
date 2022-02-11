@@ -52,12 +52,89 @@ Dessa forma foi desenvolvido um código para poder exibir na tela a posição at
         print("Say where you want me to go")
         x = int(input("X axis: "))
         y = int(input("Y axis: "))
-        z = int(input("Z axis: "))
+        z = int(input("Z axis: "))    # -*- coding: utf-8 -*-
+    import rospy
+    from geometry_msgs.msg import Pose
 
-        freq = rospy.Rate(0.5)
-        dist = 1
+    # Vai importar todos os srv do dobot
+    from dobot.srv import SetEndEffectorSuctionCup
+    from dobot.srv import GetPose
+    from dobot.srv import SetHOMEParams
 
-        k = 10
+    if __name__ == "__main__":
+        rospy.init_node('pick_and_place', anonymous=True)
+        suction_srv = rospy.ServiceProxy('DobotServer/SetEndEffectorSuctionCup', SetEndEffectorSuctionCup)
+        get_pose = rospy.ServiceProxy('DobotServer/GetPose', GetPose)
+        set_home = rospy.ServiceProxy('DobotServer/SetHOMEParams', SetHOMEParams)
+        publisher = rospy.Publisher('geometry_pose', Pose, queue_size=10)
+        # subscriber = rospy.Subscriber
+        
+        pose = get_pose()
+        home = set_home(0, 0, 0, 0, False)
+        ini_x = pose.x
+        ini_y = pose.y
+        ini_z = pose.z
+        
+        print('a')
+        # Valores arbitrarios para delimitar a area de atuacão do robo
+        while True:
+            print('The actual pose is')
+            print('X: ')
+            print(pose.x)
+            print('Y: ')
+            print(pose.y)
+            print('Z: ')
+            print(pose.z)
+            print()
+
+            print("Say where the object is positioned in the table")
+            x = int(input("X axis: "))
+            y = int(input("Y axis: "))
+            z = int(input("Z axis: "))
+            if 0 <= x > 200:
+                print('X value is not acceptable')
+            elif -100 < y > 100:
+                print('Y value is not acceptable')
+            elif -100 < z > 100:
+                print('Z value is not acceptable')
+            else:
+                break
+
+        freq = rospy.Rate(10)
+
+        while not rospy.is_shutdown():
+            msg = Pose()
+            resp = suction_srv(1, 0, False)
+
+            print('Move ate o ponto para pegar o objeto')
+            # dist = 1
+            while (pose.x != x and pose.y != y and pose.z != z) or not rospy.is_shutdown():
+                msg.position.x = x
+                msg.position.y = y
+                msg.position.z = z
+                publisher.publish(msg)
+                # dist = ((x - pose.x) + (y - pose.y) + (z - pose.z))/3
+
+                
+
+            print('Suga')
+            resp = suction_srv(1, 254, False)
+
+            # dist = 1
+            print('Move ate o ponto inicial')
+            while (pose.x != ini_x and pose.y != ini_y and pose.z != ini_z) or not rospy.is_shutdown():
+                msg.position.x = ini_x
+                msg.position.y = ini_y
+                msg.position.z = ini_z
+                publisher.publish(msg)
+                dist = ((x - pose.x) + (y - pose.y) + (z - pose.z))/3
+
+            print('Para de sugar')
+            resp = suction_srv(1, 0, False)
+
+            freq.sleep()
+
+            break
 
         while dist >= 0.1:
             print('a')
@@ -81,3 +158,52 @@ Dessa forma foi desenvolvido um código para poder exibir na tela a posição at
 \end{lstlisting}
 
 Esse código foi feito baseado no código desenvolvido por \cite{Dobotand76:online}. Porém, nenhuma das suas versões conseguiram movimentar o braço robótico.
+
+Depois de testar a movimentação decidi fazer um codigo para controlar as ferramentas do manipulador. Como a função do manipulador é pegar objetos as ferramentas escolhidas foram o \textit{gripper} e o \textit{suction cup}, ambos de funcionamento pneumático.
+
+\begin{lstlisting}[language=Python]
+    #! /usr/bin/env python
+    from numpy import uint8
+    import rospy
+    from dobot.srv import SetEndEffectorSuctionCup
+
+    if __name__ == "__main__":
+        rospy.init_node('suction_test', anonymous=True)
+        suction_srv = rospy.ServiceProxy('DobotServer/SetEndEffectorSuctionCup', SetEndEffectorSuctionCup)
+
+        x = uint8(input('Put value:  '))
+
+        freq = rospy.Rate(10)
+
+        while not rospy.is_shutdown():
+            resp = suction_srv(1, x, False)
+            print(resp.result)
+            resp.result
+            freq.sleep()
+\end{lstlisting}
+
+O código acima foi desenvolvido para testar o service do \textit{suction cup}. Assim foi possível ativar a bomba pneumática e desativa-la. Porém a bomba não faz o movimento de succionar, apenas de soprar ar, mesmo testando diversas combinações com as variáveis do serviço.
+
+\begin{lstlisting}[language=Python]
+    from numpy import uint8
+    import rospy
+    from dobot.srv import SetEndEffectorGripper
+
+    if __name__ == "__main__":
+        rospy.init_node('suction_test', anonymous=True)
+        suction_srv = rospy.ServiceProxy('DobotServer/SetEndEffectorGripper', SetEndEffectorGripper)
+
+        x = uint8(input('Put value:  '))
+
+        freq = rospy.Rate(10)
+
+        while not rospy.is_shutdown():
+            resp = suction_srv(1, x, False)
+            print(resp.result)
+            resp.result
+            freq.sleep()
+\end{lstlisting}
+
+O código acima teve como objetivo testar o service do \textit{gripper}. Testando descobriu que este service também consegue ativar a bomba, mas não desativa-la nem sugar ar. Para que possa desativa-la foi usado o service do \textit{suction cup}. Dessa forma foi decidido utilizar o service do \textit{suction cup} chamado de \textit{SetEndEffectorSuctionCup} para ambos, ja que só precisa ativar e desativar a bomba para poder usar ambos.
+
+Alguns problemas mecanicos também foram encontrados a parte que parafusaria o \textit{gripper} no braço fica muito folgada, dessa forma ele não prende no braço, mas tem como utilizar essa ferramenta se fizer um calço ou adaptador para prende-lo. Por outro lado o \textit{suction cup} consegue ser preso facilmente no manipulador, ela não tem como segurar objetos pois a bomba não faz a sucção
